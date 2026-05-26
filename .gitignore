@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Node / Next
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# Env / secrets
+.env
+.env.local
+*.local
+
+# Playwright
+scraper/.pw-profile/
+playwright-report/
+
+# OS
+.DS_Store
