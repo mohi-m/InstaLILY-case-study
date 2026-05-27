@@ -1,4 +1,5 @@
 import json
+import logging
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
 
@@ -11,6 +12,7 @@ from app.agent.graph import build_graph
 from app.agent.prompts import SYSTEM_PROMPT
 from app.config import get_settings
 from app.db import close_pool, init_pool
+from app.logging_config import configure_logging
 from app.schemas import (
     ChatRequest,
     ComponentEvent,
@@ -19,6 +21,9 @@ from app.schemas import (
     TokenEvent,
     ToolStartEvent,
 )
+
+configure_logging(get_settings().log_level)
+logger = logging.getLogger(__name__)
 
 # Which UI component each tool's result renders as.
 TOOL_COMPONENT_KIND: dict[str, str] = {
@@ -60,6 +65,32 @@ def _sse(payload: Any) -> str:
     return f"data: {payload.model_dump_json()}\n\n"
 
 
+def _fmt_args(args: dict) -> str:
+    parts = []
+    for k, v in args.items():
+        val = str(v)
+        if len(val) > 60:
+            val = val[:57] + "..."
+        parts.append(f"{k}={val!r}")
+    return ", ".join(parts)
+
+
+def _summarize_output(output: Any) -> str:
+    data = _coerce_tool_output(output)
+    if data is None:
+        return "no data"
+    if "found" in data:
+        return "found" if data["found"] else "not found"
+    if "count" in data:
+        return f"{data['count']} result(s)"
+    if "compatible" in data:
+        compat = data["compatible"]
+        return "compatible" if compat else ("not compatible" if compat is False else "unknown")
+    if "escalated" in data:
+        return "escalated"
+    return "ok"
+
+
 def _coerce_tool_output(output: Any) -> dict[str, Any] | None:
     if isinstance(output, ToolMessage):
         output = output.content
@@ -84,6 +115,7 @@ def _to_lc_messages(req: ChatRequest) -> list:
 
 
 async def _event_stream(req: ChatRequest) -> AsyncIterator[str]:
+    logger.info("chat request — %d message(s)", len(req.messages))
     graph = build_graph()
     inputs = {"messages": _to_lc_messages(req)}
     try:
@@ -94,19 +126,22 @@ async def _event_stream(req: ChatRequest) -> AsyncIterator[str]:
                 if chunk.content:
                     yield _sse(TokenEvent(delta=chunk.content))
             elif kind == "on_tool_start":
-                yield _sse(
-                    ToolStartEvent(
-                        name=event["name"],
-                        args=event["data"].get("input", {}),
-                    )
-                )
+                name = event["name"]
+                args = event["data"].get("input", {})
+                logger.info("tool start — %s(%s)", name, _fmt_args(args))
+                yield _sse(ToolStartEvent(name=name, args=args))
             elif kind == "on_tool_end":
-                comp_kind = TOOL_COMPONENT_KIND.get(event["name"])
-                data = _coerce_tool_output(event["data"].get("output"))
+                name = event["name"]
+                output = event["data"].get("output")
+                logger.info("tool end   — %s → %s", name, _summarize_output(output))
+                comp_kind = TOOL_COMPONENT_KIND.get(name)
+                data = _coerce_tool_output(output)
                 if comp_kind and data is not None:
                     yield _sse(ComponentEvent(kind=comp_kind, data=data))
+        logger.info("done")
         yield _sse(DoneEvent())
-    except Exception as exc:  # surface failures to the client stream
+    except Exception as exc:
+        logger.exception("stream error: %s", exc)
         yield _sse(ErrorEvent(message=str(exc)))
 
 

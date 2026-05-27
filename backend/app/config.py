@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql://partselect:partselect@localhost:5432/partselect"
     frontend_origin: str = "http://localhost:3000"
+    log_level: str = "INFO"
 
 
 @lru_cache
