@@ -7,11 +7,14 @@ is the most stable thing to key on. If markup shifts, adjust here — extraction
 isolated to this module.
 """
 
+import logging
 import re
 from typing import Any
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 BASE = "https://www.partselect.com"
 
@@ -46,9 +49,11 @@ def parse_part_page(html: str, url: str) -> dict[str, Any] | None:
     ps_node = soup.select_one("[itemprop='productID']")
     ps_number = _clean(ps_node.get_text()) if ps_node else None
     if not ps_number:
+        # itemprop not present — fall back to extracting PS number from the URL.
         m = PS_RE.search(url)
         ps_number = m.group(0).upper() if m else None
     if not ps_number:
+        logger.warning("Could not extract PS number from %s — skipping part", url)
         return None
     ps_number = ps_number.upper()
 
@@ -87,6 +92,9 @@ def parse_part_page(html: str, url: str) -> dict[str, Any] | None:
     install_instructions = _parse_install_instructions(soup)
 
     symptoms = _parse_part_fix_symptoms(soup)
+
+    logger.debug("Parsed part %s: name=%r price=%s symptoms=%d",
+                 ps_number, name, price, len(symptoms))
 
     return {
         "ps_number": ps_number,
@@ -184,6 +192,9 @@ def parse_model_page(html: str, url: str) -> dict[str, Any]:
     qa = _parse_model_qa(soup)
     symptom_links = _parse_symptom_links(soup, url)
 
+    logger.debug("Parsed model page %s: brand=%r qa=%d symptom_links=%d",
+                 url, brand, len(qa), len(symptom_links))
+
     return {
         "brand": brand,
         "appliance_type": appliance_type,
@@ -249,6 +260,8 @@ def parse_parts_listing(html: str) -> dict[str, Any]:
     if next_a and "disabled" not in (next_a.find_parent("li").get("class") or []):
         next_url = urljoin(BASE, next_a["href"])
 
+    logger.debug("Parts listing: found %d part(s), next_url=%s", len(ps_numbers), next_url)
+
     return {
         "ps_numbers": ps_numbers,
         "part_urls": [part_urls[ps] for ps in ps_numbers],
@@ -293,7 +306,9 @@ def parse_symptom_page(html: str, top_n: int = 3) -> list[dict[str, Any]]:
                 "url": urljoin(BASE, a["href"].split("?")[0].split("#")[0]),
             }
 
-    if not found:  # fallback: generic anchor scan with nearby-percentage lookup
+    if not found:
+        # Primary selector found nothing — page markup may have changed; try raw anchor scan.
+        logger.debug("Primary symptom selector found no results — falling back to anchor scan")
         for a in soup.find_all("a", href=True):
             if not PS_HREF_RE.search(a["href"]):
                 continue
@@ -308,6 +323,7 @@ def parse_symptom_page(html: str, top_n: int = 3) -> list[dict[str, Any]]:
     ranked = sorted(found.values(), key=lambda d: d["effectiveness"], reverse=True)[:top_n]
     for d in ranked:
         d["effectiveness"] = d["effectiveness"] or None
+    logger.debug("Symptom page: %d part(s) found (top %d returned)", len(found), len(ranked))
     return ranked
 
 

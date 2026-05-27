@@ -1,7 +1,10 @@
 """robots.txt gate. We respect Disallow rules and crawl-delay before fetching."""
 
+import logging
 import urllib.request
 from urllib.robotparser import RobotFileParser
+
+logger = logging.getLogger(__name__)
 
 # A realistic Windows Chrome UA so the browser context and robots check agree.
 USER_AGENT = (
@@ -26,8 +29,11 @@ class RobotsGate:
             self._rp.parse(text.splitlines())
             delay = self._rp.crawl_delay(USER_AGENT)
             self._crawl_delay = float(delay) if delay else None
-        except Exception:
+            logger.info("robots.txt loaded — crawl-delay: %s",
+                        f"{self._crawl_delay}s" if self._crawl_delay else "not set")
+        except Exception as exc:
             # If robots.txt is unreachable, fail closed to the configured polite delay.
+            logger.warning("Could not fetch robots.txt (%s) — treating all URLs as allowed", exc)
             self._rp = RobotFileParser()
             self._rp.allow_all = True
 

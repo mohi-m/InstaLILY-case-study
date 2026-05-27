@@ -1,11 +1,14 @@
 """Clean scraped records, embed unstructured text, and upsert into Postgres."""
 
+import logging
 import os
 from pathlib import Path
 
 import asyncpg
 from openai import AsyncOpenAI
 from pgvector.asyncpg import register_vector
+
+logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://partselect:partselect@localhost:5432/partselect"
@@ -16,6 +19,7 @@ _openai = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
 
 
 async def get_pool() -> asyncpg.Pool:
+    logger.debug("Creating asyncpg pool (dsn=%s)", DATABASE_URL)
     return await asyncpg.create_pool(dsn=DATABASE_URL, min_size=1, max_size=4, init=register_vector)
 
 
@@ -34,15 +38,19 @@ def _migrations_dir() -> Path | None:
 async def ensure_schema(pool: asyncpg.Pool) -> None:
     mig = _migrations_dir()
     if not mig:
+        logger.warning("No migrations directory found — skipping schema setup")
         return
+    logger.info("Running migrations from %s", mig)
     async with pool.acquire() as conn:
         for sql_file in sorted(mig.glob("*.sql")):
+            logger.debug("Applying migration: %s", sql_file.name)
             await conn.execute(sql_file.read_text())
 
 
 async def embed(texts: list[str]) -> list[list[float]]:
     if not texts:
         return []
+    logger.debug("Embedding %d text chunk(s) with %s", len(texts), EMBEDDING_MODEL)
     resp = await _openai.embeddings.create(model=EMBEDDING_MODEL, input=texts)
     return [d.embedding for d in resp.data]
 
@@ -88,7 +96,9 @@ async def upsert_part(pool: asyncpg.Pool, rec: dict, appliance_type: str) -> int
             _clean(rec.get("install_time")), rec.get("image_url"),
             rec.get("url"), symptom_text,
         )
+        logger.debug("Upserted part %s (id=%d)", rec["ps_number"], part_id)
 
+        # Always rebuild chunks so stale embeddings don't linger after a re-scrape.
         await conn.execute("DELETE FROM part_chunks WHERE part_id=$1", part_id)
         chunks: list[tuple[str, str]] = []
         if rec.get("description"):
@@ -106,6 +116,7 @@ async def upsert_part(pool: asyncpg.Pool, rec: dict, appliance_type: str) -> int
                     "VALUES ($1,$2,$3,$4)",
                     part_id, ctype, content, emb,
                 )
+            logger.debug("Inserted %d chunk(s) for part %s", len(chunks), rec["ps_number"])
     return part_id
 
 
@@ -114,7 +125,7 @@ async def upsert_part(pool: asyncpg.Pool, rec: dict, appliance_type: str) -> int
 
 async def upsert_model(pool: asyncpg.Pool, model_number: str, appliance_type: str, rec: dict) -> int:
     async with pool.acquire() as conn:
-        return await conn.fetchval(
+        model_id = await conn.fetchval(
             """
             INSERT INTO models (model_number, brand, appliance_type, name, url)
             VALUES ($1,$2,$3,$4,$5)
@@ -128,6 +139,8 @@ async def upsert_model(pool: asyncpg.Pool, model_number: str, appliance_type: st
             model_number, _clean(rec.get("brand")), appliance_type,
             _clean(rec.get("name")), rec.get("url"),
         )
+        logger.debug("Upserted model %s (id=%d)", model_number, model_id)
+        return model_id
 
 
 async def link_compatibility(pool: asyncpg.Pool, model_id: int, ps_numbers: list[str]) -> None:
@@ -141,6 +154,7 @@ async def link_compatibility(pool: asyncpg.Pool, model_id: int, ps_numbers: list
                 """,
                 model_id, ps,
             )
+    logger.debug("Linked %d part(s) to model id=%d", len(ps_numbers), model_id)
 
 
 # --------------------------------------------------------------------------- symptoms
@@ -151,6 +165,7 @@ async def upsert_symptoms(pool: asyncpg.Pool, model_id: int, symptoms: list[dict
     if not symptoms:
         return {}
     names = [_clean(s["name"]) for s in symptoms if _clean(s.get("name"))]
+    logger.debug("Embedding %d symptom name(s) for model id=%d", len(names), model_id)
     embeddings = await embed(names)
     result: dict[str, int] = {}
     async with pool.acquire() as conn:
@@ -166,8 +181,10 @@ async def upsert_symptoms(pool: asyncpg.Pool, model_id: int, symptoms: list[dict
                 """,
                 model_id, name, s.get("url"), emb,
             )
+            # Always clear old symptom_parts so removed parts don't linger.
             await conn.execute("DELETE FROM symptom_parts WHERE symptom_id=$1", sid)
             result[name] = sid
+    logger.debug("Upserted %d symptom(s) for model id=%d", len(result), model_id)
     return result
 
 
@@ -183,6 +200,7 @@ async def upsert_symptom_parts(pool: asyncpg.Pool, symptom_id: int, parts: list[
                 """,
                 symptom_id, p["ps_number"], p.get("effectiveness"),
             )
+    logger.debug("Upserted %d symptom_part(s) for symptom id=%d", len(parts), symptom_id)
 
 
 # --------------------------------------------------------------------------- Q&A
@@ -192,8 +210,10 @@ async def upsert_qa(pool: asyncpg.Pool, model_id: int, qa_list: list[dict]) -> N
     if not qa_list:
         return
     questions = [_clean(q.get("question")) or "" for q in qa_list]
+    logger.debug("Embedding %d Q&A question(s) for model id=%d", len(questions), model_id)
     embeddings = await embed(questions)
     async with pool.acquire() as conn:
+        # Full replace: simpler than diffing and ensures stale Q&A don't persist.
         await conn.execute("DELETE FROM model_qa WHERE model_id=$1", model_id)
         for q, emb in zip(qa_list, embeddings):
             qa_id = await conn.fetchval(
@@ -212,3 +232,4 @@ async def upsert_qa(pool: asyncpg.Pool, model_id: int, qa_list: list[dict]) -> N
                     """,
                     qa_id, part["ps"],
                 )
+    logger.debug("Upserted %d Q&A row(s) for model id=%d", len(qa_list), model_id)
