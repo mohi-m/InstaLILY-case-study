@@ -76,20 +76,6 @@ npm install
 npm run dev
 ```
 
-### Populate the database (run once)
-
-PartSelect blocks plain HTTP, so the scraper drives a real browser:
-
-```bash
-cd scraper
-pip install -r requirements.txt
-playwright install chromium
-python run.py
-```
-
-If PartSelect blocks your IP, switch to an unblocked network and re-run (upserts are
-safe). Page counts are bounded by `SCRAPE_MAX_MODELS` / `SCRAPE_MAX_PARTS` in `.env`.
-
 ## Sample queries (work at the API level this milestone)
 
 ```bash
