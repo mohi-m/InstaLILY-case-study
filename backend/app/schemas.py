@@ -17,8 +17,10 @@ class ChatRequest(BaseModel):
 ComponentKind = Literal[
     "product_card",
     "install_steps",
-    "exploded_view",
     "compatibility",
+    "model_info",
+    "symptom_parts",
+    "qa_results",
     "escalation",
 ]
 

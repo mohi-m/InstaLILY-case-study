@@ -47,14 +47,6 @@ CREATE TABLE IF NOT EXISTS model_parts (
     PRIMARY KEY (model_id, part_id)
 );
 
-CREATE TABLE IF NOT EXISTS diagrams (
-    id        BIGSERIAL PRIMARY KEY,
-    model_id  BIGINT NOT NULL REFERENCES models (id) ON DELETE CASCADE,
-    name      TEXT,
-    image_url TEXT NOT NULL,
-    section   TEXT
-);
-
 CREATE TABLE IF NOT EXISTS part_chunks (
     id         BIGSERIAL PRIMARY KEY,
     part_id    BIGINT NOT NULL REFERENCES parts (id) ON DELETE CASCADE,

@@ -25,9 +25,11 @@ TOOL_COMPONENT_KIND: dict[str, str] = {
     "search_part_by_sku": "product_card",
     "search_by_symptom": "product_card",
     "get_part_detail": "install_steps",
+    "get_model_info": "model_info",
+    "list_parts_for_model": "product_card",
     "check_compatibility": "compatibility",
-    "get_exploded_view": "exploded_view",
-    "check_stock_and_price": "product_card",
+    "find_symptoms_for_model": "symptom_parts",
+    "search_model_qa": "qa_results",
     "escalate_to_human": "escalation",
 }
 
