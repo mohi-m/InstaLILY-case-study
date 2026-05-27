@@ -14,10 +14,15 @@ CREATE TABLE IF NOT EXISTS parts (
     description          TEXT,
     install_instructions TEXT,
     url                  TEXT,
+    symptom_text         TEXT,
+    image_url            TEXT,
+    install_difficulty   TEXT,
+    install_time         TEXT,
     search_vector        tsvector GENERATED ALWAYS AS (
         setweight(to_tsvector('english', coalesce(ps_number, '')), 'A') ||
         setweight(to_tsvector('english', coalesce(mfg_part_number, '')), 'A') ||
         setweight(to_tsvector('english', coalesce(name, '')), 'B') ||
+        setweight(to_tsvector('english', coalesce(symptom_text, '')), 'B') ||
         setweight(to_tsvector('english', coalesce(description, '')), 'C')
     ) STORED,
     created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -27,37 +32,21 @@ CREATE INDEX IF NOT EXISTS parts_search_idx ON parts USING GIN (search_vector);
 CREATE INDEX IF NOT EXISTS parts_mfg_idx ON parts (mfg_part_number);
 
 CREATE TABLE IF NOT EXISTS models (
-    id              BIGSERIAL PRIMARY KEY,
-    model_number    TEXT NOT NULL UNIQUE,
-    brand           TEXT,
-    appliance_type  TEXT NOT NULL CHECK (appliance_type IN ('Refrigerator', 'Dishwasher')),
-    name            TEXT,
-    common_symptoms JSONB NOT NULL DEFAULT '[]'::jsonb,
-    url             TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    id             BIGSERIAL PRIMARY KEY,
+    model_number   TEXT NOT NULL UNIQUE,
+    brand          TEXT,
+    appliance_type TEXT NOT NULL CHECK (appliance_type IN ('Refrigerator', 'Dishwasher')),
+    name           TEXT,
+    url            TEXT,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Compatibility join.
 CREATE TABLE IF NOT EXISTS model_parts (
     model_id BIGINT NOT NULL REFERENCES models (id) ON DELETE CASCADE,
     part_id  BIGINT NOT NULL REFERENCES parts (id) ON DELETE CASCADE,
     PRIMARY KEY (model_id, part_id)
 );
 
-CREATE TABLE IF NOT EXISTS part_symptoms (
-    part_id BIGINT NOT NULL REFERENCES parts (id) ON DELETE CASCADE,
-    symptom TEXT NOT NULL,
-    PRIMARY KEY (part_id, symptom)
-);
-
-CREATE TABLE IF NOT EXISTS part_qa (
-    id       BIGSERIAL PRIMARY KEY,
-    part_id  BIGINT NOT NULL REFERENCES parts (id) ON DELETE CASCADE,
-    question TEXT,
-    answer   TEXT
-);
-
--- Schematic / exploded-view diagram URLs, keyed to a model.
 CREATE TABLE IF NOT EXISTS diagrams (
     id        BIGSERIAL PRIMARY KEY,
     model_id  BIGINT NOT NULL REFERENCES models (id) ON DELETE CASCADE,
@@ -66,7 +55,6 @@ CREATE TABLE IF NOT EXISTS diagrams (
     section   TEXT
 );
 
--- Semantic-search corpus: one row per embeddable chunk of part text.
 CREATE TABLE IF NOT EXISTS part_chunks (
     id         BIGSERIAL PRIMARY KEY,
     part_id    BIGINT NOT NULL REFERENCES parts (id) ON DELETE CASCADE,
@@ -78,3 +66,41 @@ CREATE TABLE IF NOT EXISTS part_chunks (
 CREATE INDEX IF NOT EXISTS part_chunks_part_idx ON part_chunks (part_id);
 CREATE INDEX IF NOT EXISTS part_chunks_embedding_idx
     ON part_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+CREATE TABLE IF NOT EXISTS symptoms (
+    id             BIGSERIAL PRIMARY KEY,
+    model_id       BIGINT NOT NULL REFERENCES models (id) ON DELETE CASCADE,
+    name           TEXT NOT NULL,
+    url            TEXT,
+    name_embedding vector(1536),
+    UNIQUE (model_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS symptoms_model_idx ON symptoms (model_id);
+CREATE INDEX IF NOT EXISTS symptoms_embedding_idx
+    ON symptoms USING ivfflat (name_embedding vector_cosine_ops) WITH (lists = 100);
+
+CREATE TABLE IF NOT EXISTS symptom_parts (
+    symptom_id    BIGINT NOT NULL REFERENCES symptoms (id) ON DELETE CASCADE,
+    part_id       BIGINT NOT NULL REFERENCES parts (id) ON DELETE CASCADE,
+    effectiveness NUMERIC(5, 2),
+    PRIMARY KEY (symptom_id, part_id)
+);
+
+CREATE TABLE IF NOT EXISTS model_qa (
+    id                 BIGSERIAL PRIMARY KEY,
+    model_id           BIGINT NOT NULL REFERENCES models (id) ON DELETE CASCADE,
+    question           TEXT,
+    answer             TEXT,
+    question_embedding vector(1536)
+);
+
+CREATE INDEX IF NOT EXISTS model_qa_model_idx ON model_qa (model_id);
+CREATE INDEX IF NOT EXISTS model_qa_embedding_idx
+    ON model_qa USING ivfflat (question_embedding vector_cosine_ops) WITH (lists = 100);
+
+CREATE TABLE IF NOT EXISTS qa_parts (
+    qa_id   BIGINT NOT NULL REFERENCES model_qa (id) ON DELETE CASCADE,
+    part_id BIGINT NOT NULL REFERENCES parts (id) ON DELETE CASCADE,
+    PRIMARY KEY (qa_id, part_id)
+);

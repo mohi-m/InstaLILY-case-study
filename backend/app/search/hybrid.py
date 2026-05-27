@@ -67,7 +67,12 @@ async def _load_parts(ids: list[int]) -> list[dict[str, Any]]:
     )
     by_id = {r["id"]: {**dict(r), "symptoms": []} for r in rows}
     sym_rows = await pool.fetch(
-        "SELECT part_id, symptom FROM part_symptoms WHERE part_id = ANY($1::bigint[])",
+        """
+        SELECT DISTINCT sp.part_id, s.name AS symptom
+        FROM symptom_parts sp
+        JOIN symptoms s ON s.id = sp.symptom_id
+        WHERE sp.part_id = ANY($1::bigint[])
+        """,
         ids,
     )
     for r in sym_rows:

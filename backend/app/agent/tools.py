@@ -9,7 +9,8 @@ from app.db import get_pool
 from app.search.hybrid import hybrid_search
 
 _PART_COLUMNS = """id, ps_number, mfg_part_number, name, brand, appliance_type,
-                   price, stock_status, description, install_instructions, url"""
+                   price, stock_status, description, install_instructions,
+                   install_difficulty, install_time, image_url, url"""
 
 
 def _split_steps(text: str | None) -> list[str]:
@@ -61,16 +62,30 @@ async def get_part_detail(ps_number: str) -> dict[str, Any]:
         return {"found": False, "ps_number": ps_number}
     pool = get_pool()
     symptoms = await pool.fetch(
-        "SELECT symptom FROM part_symptoms WHERE part_id = $1", part["id"]
+        """
+        SELECT s.name, sp.effectiveness
+        FROM symptoms s
+        JOIN symptom_parts sp ON sp.symptom_id = s.id
+        WHERE sp.part_id = $1
+        ORDER BY sp.effectiveness DESC NULLS LAST
+        """,
+        part["id"],
     )
     qa = await pool.fetch(
-        "SELECT question, answer FROM part_qa WHERE part_id = $1 LIMIT 10", part["id"]
+        """
+        SELECT q.question, q.answer
+        FROM model_qa q
+        JOIN qa_parts qp ON qp.qa_id = q.id
+        WHERE qp.part_id = $1
+        LIMIT 10
+        """,
+        part["id"],
     )
     return {
         "found": True,
         "part": part,
         "install_steps": _split_steps(part.get("install_instructions")),
-        "symptoms": [r["symptom"] for r in symptoms],
+        "symptoms": [r["name"] for r in symptoms],
         "qa": [dict(r) for r in qa],
     }
 
