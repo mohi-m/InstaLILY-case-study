@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     embedding_dim: int = 1536
 
-    database_url: str = "postgresql://partselect:partselect@db:5432/partselect"
+    database_url: str = "postgresql://partselect:partselect@localhost:5432/partselect"
     frontend_origin: str = "http://localhost:3000"
 
 

@@ -65,7 +65,14 @@ async def _load_parts(ids: list[int]) -> list[dict[str, Any]]:
         """,
         ids,
     )
-    by_id = {r["id"]: dict(r) for r in rows}
+    by_id = {r["id"]: {**dict(r), "symptoms": []} for r in rows}
+    sym_rows = await pool.fetch(
+        "SELECT part_id, symptom FROM part_symptoms WHERE part_id = ANY($1::bigint[])",
+        ids,
+    )
+    for r in sym_rows:
+        if r["part_id"] in by_id:
+            by_id[r["part_id"]]["symptoms"].append(r["symptom"])
     return [by_id[i] for i in ids if i in by_id]
 
 

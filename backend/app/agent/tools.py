@@ -15,8 +15,11 @@ _PART_COLUMNS = """id, ps_number, mfg_part_number, name, brand, appliance_type,
 def _split_steps(text: str | None) -> list[str]:
     if not text:
         return []
-    raw = [line.strip(" .\t-•") for line in text.splitlines()]
-    return [s for s in raw if s]
+    # Strip only surrounding whitespace and decoration chars; preserve leading digits
+    # so "1. Disconnect the water line" stays intact.
+    lines = [line.strip().lstrip("-•\t") for line in text.splitlines()]
+    # Drop very short lines (headers, noise) but keep numbered step fragments
+    return [l for l in lines if l and len(l) > 8]
 
 
 async def _fetch_part(ps_number: str) -> dict[str, Any] | None:
@@ -42,7 +45,9 @@ async def search_part_by_sku(sku: str) -> dict[str, Any]:
 @tool
 async def search_by_symptom(query: str, appliance_type: str | None = None) -> dict[str, Any]:
     """Find parts that fix a described problem or symptom (e.g. "ice maker not
-    working"). Optionally restrict to 'Refrigerator' or 'Dishwasher'."""
+    working"). Optionally restrict to 'Refrigerator' or 'Dishwasher'.
+    Each result includes the symptoms the part is known to fix so you can
+    explain the relevance to the customer."""
     parts = await hybrid_search(query, appliance_type=appliance_type, limit=5)
     return {"query": query, "count": len(parts), "parts": parts}
 

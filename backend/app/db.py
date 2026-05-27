@@ -20,21 +20,32 @@ async def init_pool() -> asyncpg.Pool:
     global _pool
     if _pool is None:
         settings = get_settings()
+        # Run migrations on a plain connection first so that
+        # CREATE EXTENSION IF NOT EXISTS vector exists before the pool
+        # tries to register the vector codec on every connection.
+        raw = await asyncpg.connect(dsn=settings.database_url)
+        try:
+            await _apply_migrations_conn(raw)
+        finally:
+            await raw.close()
         _pool = await asyncpg.create_pool(
             dsn=settings.database_url,
             min_size=1,
             max_size=10,
             init=_init_connection,
         )
-        await apply_migrations(_pool)
     return _pool
 
 
-async def apply_migrations(pool: asyncpg.Pool) -> None:
+async def _apply_migrations_conn(conn: asyncpg.Connection) -> None:
     for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
         sql = sql_file.read_text()
-        async with pool.acquire() as conn:
-            await conn.execute(sql)
+        await conn.execute(sql)
+
+
+async def apply_migrations(pool: asyncpg.Pool) -> None:
+    async with pool.acquire() as conn:
+        await _apply_migrations_conn(conn)
 
 
 def get_pool() -> asyncpg.Pool:

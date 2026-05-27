@@ -5,3 +5,4 @@ lxml==5.3.0
 asyncpg==0.30.0
 pgvector==0.3.6
 openai==1.59.6
+setuptools==82.0.1

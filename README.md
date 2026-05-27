@@ -32,30 +32,63 @@ Next.js (scaffold)  ──SSE──▶  FastAPI  ──▶  LangGraph agent (GPT
   pgvector + `text-embedding-3-small`; merged with Reciprocal Rank Fusion.
 - **Scraper** (`scraper/`): Playwright-driven Chromium crawl, scope-locked to
   `*-Refrigerator-Models.htm` / `*-Dishwasher-Models.htm`, breadcrumb-validated,
-  robots.txt-respecting. **Run once**; data persists in the `pgdata` volume.
+  robots.txt-respecting. **Run once**; re-running is safe (idempotent upserts).
 - **Frontend** (`frontend/`): Next.js + TypeScript chat scaffold consuming the SSE
   stream.
 
 ## Quick start
 
+### Prerequisites
+
+- Python 3.11+
+- Node.js 22+
+- PostgreSQL 16 with [pgvector](https://github.com/pgvector/pgvector)
+
+Create the database and enable pgvector once:
+
+```sql
+CREATE DATABASE partselect;
+\c partselect
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+### 1. Environment
+
 ```bash
-cp .env.example .env        # set OPENAI_API_KEY
-docker compose up -d db backend frontend
-curl localhost:8000/health  # {"status":"ok"}
+cp .env.example .env   # set OPENAI_API_KEY (and DATABASE_URL if credentials differ)
+```
+
+### 2. Backend
+
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Verify: `curl localhost:8000/health` → `{"status":"ok"}`
+
+### 3. Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
 ### Populate the database (run once)
 
-PartSelect blocks plain HTTP requests, so the scraper drives a real browser. It is
-profile-gated and does **not** run on `up`:
+PartSelect blocks plain HTTP, so the scraper drives a real browser:
 
 ```bash
-docker compose run --rm scraper python run.py
+cd scraper
+pip install -r requirements.txt
+playwright install chromium
+python run.py
 ```
 
-If PartSelect hard-blocks the container's IP, run the scraper from an unblocked
-network; because data lands in the `pgdata` Docker volume, this is a one-time step.
-Page counts are bounded by `SCRAPE_MAX_MODELS` / `SCRAPE_MAX_PARTS` in `.env`.
+If PartSelect blocks your IP, switch to an unblocked network and re-run (upserts are
+safe). Page counts are bounded by `SCRAPE_MAX_MODELS` / `SCRAPE_MAX_PARTS` in `.env`.
 
 ## Sample queries (work at the API level this milestone)
 
