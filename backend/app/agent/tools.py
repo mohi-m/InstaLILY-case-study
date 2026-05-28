@@ -1,10 +1,4 @@
-"""Agent tools — one tool per meaningful data-model capability.
-
-Removed: get_exploded_view (diagrams table absent from schema),
-         check_stock_and_price (folded into search_part_by_sku).
-Added:   get_model_info, list_parts_for_model,
-         search_model_qa, find_symptoms_for_model.
-"""
+"""Agent tools — one tool per meaningful data-model capability."""
 
 import re
 from typing import Any
@@ -65,17 +59,6 @@ def _repair_stories(text: str | None) -> list[str]:
 # ---------------------------------------------------------------------------
 
 @tool
-async def search_part_by_sku(sku: str) -> dict[str, Any]:
-    """Look up a part by its PartSelect number (e.g. PS11752778) or manufacturer
-    part number. Returns full part data including price and stock status.
-    Use whenever the customer provides a specific part number."""
-    part = await _fetch_part(sku)
-    if not part:
-        return {"found": False, "sku": sku}
-    return {"found": True, "part": part}
-
-
-@tool
 async def search_by_symptom(query: str, appliance_type: str | None = None) -> dict[str, Any]:
     """Find parts that fix a described problem or symptom (e.g. 'ice maker not
     working', 'dishes not cleaning'). Optionally restrict to 'Refrigerator' or
@@ -86,8 +69,10 @@ async def search_by_symptom(query: str, appliance_type: str | None = None) -> di
 
 @tool
 async def get_part_detail(ps_number: str) -> dict[str, Any]:
-    """Get full detail for a part: description, symptoms it fixes (with effectiveness
-    scores), user-submitted installation steps, and relevant customer Q&A."""
+    """Look up a part by PartSelect number (e.g. PS11752778) or manufacturer part
+    number and return full detail: price, stock status, description, symptoms it
+    fixes (with effectiveness scores), user-submitted installation steps, and
+    relevant customer Q&A. Use whenever the customer provides a specific part number."""
     part = await _fetch_part(ps_number)
     if not part:
         return {"found": False, "ps_number": ps_number}
@@ -290,7 +275,6 @@ async def escalate_to_human(reason: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 ALL_TOOLS = [
-    search_part_by_sku,
     search_by_symptom,
     get_part_detail,
     get_model_info,
