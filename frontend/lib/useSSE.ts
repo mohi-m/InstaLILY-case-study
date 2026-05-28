@@ -141,5 +141,10 @@ export function useChat() {
     [messages, updateLast]
   );
 
-  return { messages, streaming, send };
+  const reset = useCallback(() => {
+    setMessages([]);
+    setStreaming(false);
+  }, []);
+
+  return { messages, streaming, send, reset };
 }

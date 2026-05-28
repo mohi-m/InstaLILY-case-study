@@ -14,7 +14,7 @@ const SUGGESTIONS = [
 ];
 
 export default function Page() {
-  const { messages, streaming, send } = useChat();
+  const { messages, streaming, send, reset } = useChat();
   const [input, setInput] = useState("");
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -38,8 +38,21 @@ export default function Page() {
     <main className="ps-page">
       <div className="ps-chat">
         <div className="ps-chat__head">
-          <h1>PartSelect Assistant</h1>
-          <p>Refrigerator &amp; Dishwasher parts, compatibility, and repair help</p>
+          <div className="ps-chat__head-text">
+            <h1>PartSelect Assistant</h1>
+            <p>Refrigerator &amp; Dishwasher parts, compatibility, and repair help</p>
+          </div>
+          {messages.length > 0 && (
+            <button
+              type="button"
+              className="ps-chat__reset"
+              onClick={reset}
+              disabled={streaming}
+              title="Reset chat"
+            >
+              New chat
+            </button>
+          )}
         </div>
 
         <div className="ps-chat__body" ref={bodyRef}>
