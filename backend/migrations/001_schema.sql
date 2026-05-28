@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS part_chunks (
 
 CREATE INDEX IF NOT EXISTS part_chunks_part_idx ON part_chunks (part_id);
 CREATE INDEX IF NOT EXISTS part_chunks_embedding_idx
-    ON part_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+    ON part_chunks USING hnsw (embedding vector_cosine_ops);
 
 CREATE TABLE IF NOT EXISTS symptoms (
     id             BIGSERIAL PRIMARY KEY,
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS symptoms (
 
 CREATE INDEX IF NOT EXISTS symptoms_model_idx ON symptoms (model_id);
 CREATE INDEX IF NOT EXISTS symptoms_embedding_idx
-    ON symptoms USING ivfflat (name_embedding vector_cosine_ops) WITH (lists = 100);
+    ON symptoms USING hnsw (name_embedding vector_cosine_ops);
 
 CREATE TABLE IF NOT EXISTS symptom_parts (
     symptom_id    BIGINT NOT NULL REFERENCES symptoms (id) ON DELETE CASCADE,
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS model_qa (
 
 CREATE INDEX IF NOT EXISTS model_qa_model_idx ON model_qa (model_id);
 CREATE INDEX IF NOT EXISTS model_qa_embedding_idx
-    ON model_qa USING ivfflat (question_embedding vector_cosine_ops) WITH (lists = 100);
+    ON model_qa USING hnsw (question_embedding vector_cosine_ops);
 
 CREATE TABLE IF NOT EXISTS qa_parts (
     qa_id   BIGINT NOT NULL REFERENCES model_qa (id) ON DELETE CASCADE,
