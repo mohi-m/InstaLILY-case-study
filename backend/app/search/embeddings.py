@@ -1,5 +1,3 @@
-from functools import lru_cache
-
 from openai import AsyncOpenAI
 
 from app.config import get_settings
@@ -14,12 +12,7 @@ def _get_client() -> AsyncOpenAI:
     return _client
 
 
-# Tiny in-process cache: identical query strings recur within a session.
-@lru_cache(maxsize=512)
-def _cache_key(text: str) -> str:
-    return text
-
-
+# Tiny in-process cache — identical query strings recur within a session.
 _embed_cache: dict[str, list[float]] = {}
 
 

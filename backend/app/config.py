@@ -9,7 +9,6 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     llm_model: str = "gpt-5.4-mini"
     embedding_model: str = "text-embedding-3-small"
-    embedding_dim: int = 1536
 
     database_url: str = "postgresql://partselect:partselect@localhost:5432/partselect"
     frontend_origin: str = "http://localhost:3000"

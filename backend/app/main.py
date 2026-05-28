@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 # Which UI component each tool's result renders as.
 TOOL_COMPONENT_KIND: dict[str, str] = {
-    "search_part_by_sku": "product_card",
     "search_by_symptom": "product_card",
     "get_part_detail": "install_steps",
     "get_model_info": "model_info",

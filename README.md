@@ -5,36 +5,30 @@ replacement parts, verify model compatibility, troubleshoot symptoms, and get
 installation guidance. The agent is **strictly scoped** to these two appliance
 categories and politely declines anything else.
 
-> **Milestone status — backend-first.** This repo currently delivers the complete,
-> demoable backend: Postgres + pgvector, a one-shot Playwright data pipeline, hybrid
-> (full-text + vector) search, a LangGraph agent over GPT-5.4-mini, and a FastAPI SSE
-> API. The Next.js frontend is a **scaffold** that proves the streaming contract; the
-> rich PartSelect-themed UI and in-chat custom components (product cards, exploded-view
-> diagrams, install visualizer) are a follow-up.
-
 ## Architecture
 
 ```
-Next.js (scaffold)  ──SSE──▶  FastAPI  ──▶  LangGraph agent (GPT-5.4-mini, 7 tools)
-                                                  │
-                                                  ▼
-                              Hybrid search (Postgres FTS + pgvector RRF)
-                                                  │
-                                                  ▼
-                        Postgres 16 + pgvector  ◀── one-shot Playwright scraper
+Next.js (PartSelect UI)  ──SSE──▶  FastAPI  ──▶  LangGraph agent (GPT-5.4-mini, 8 tools)
+                                                       │
+                                                       ▼
+                                   Hybrid search (Postgres FTS + pgvector RRF)
+                                                       │
+                                                       ▼
+                             Postgres 16 + pgvector  ◀── one-shot Playwright scraper
 ```
 
 - **Backend** (`backend/`): FastAPI, LangGraph `StateGraph`, OpenAI GPT-5.4-mini.
-  Tools: `search_part_by_sku`, `search_by_symptom`, `get_part_detail`,
-  `check_compatibility`, `get_exploded_view`, `check_stock_and_price`,
-  `escalate_to_human`.
+  Tools: `search_by_symptom`, `get_part_detail`, `get_model_info`,
+  `list_parts_for_model`, `check_compatibility`, `find_symptoms_for_model`,
+  `search_model_qa`, `escalate_to_human`.
 - **Search**: exact/keyword via Postgres `tsvector`; semantic troubleshooting via
   pgvector + `text-embedding-3-small`; merged with Reciprocal Rank Fusion.
-- **Scraper** (`scraper/`): Playwright-driven Chromium crawl, scope-locked to
-  `*-Refrigerator-Models.htm` / `*-Dishwasher-Models.htm`, breadcrumb-validated,
-  robots.txt-respecting. **Run once**; re-running is safe (idempotent upserts).
-- **Frontend** (`frontend/`): Next.js + TypeScript chat scaffold consuming the SSE
-  stream.
+- **Scraper** (`scraper/`): Playwright-driven Chromium crawl over a fixed list of
+  Refrigerator and Dishwasher models (`scraper/targets.py`), robots.txt-respecting.
+  **Run once**; re-running is safe (idempotent upserts).
+- **Frontend** (`frontend/`): Next.js + TypeScript chat UI consuming the SSE stream,
+  rendering tool activity inline and dispatching the agent's component events to
+  PartSelect-themed cards (parts, install steps, compatibility, model info, Q&A).
 
 ## Quick start
 
@@ -76,17 +70,16 @@ npm install
 npm run dev
 ```
 
-## Sample queries (work at the API level this milestone)
+## Sample queries
 
 ```bash
 curl -N localhost:8000/api/chat -H 'Content-Type: application/json' -d '{
   "messages":[{"role":"user","content":"How can I install part number PS11752778?"}]}'
 ```
 
-- "How can I install part number PS11752778?" → SKU lookup → install-steps component.
-- "Is this part compatible with my WDT780SAEM1 model?" → compatibility check.
-- "The ice maker on my Whirlpool fridge is not working. How can I fix it?" → symptom
-  hybrid search.
+- "How can I install part number PS11752778?" → `get_part_detail` → install-steps card.
+- "Is PS11752778 compatible with my WDT780SAEM1 model?" → `check_compatibility`.
+- "The ice maker on my Whirlpool fridge is not working." → `search_by_symptom` hybrid search.
 - Out-of-scope (e.g. "what's the weather?") → polite refusal, no tool calls.
 
 ## SSE event contract
@@ -101,5 +94,5 @@ curl -N localhost:8000/api/chat -H 'Content-Type: application/json' -d '{
 cd backend && pip install -r requirements.txt && pytest
 ```
 
-Unit tests cover breadcrumb scope validation, frontier link patterns, RRF ordering,
-SSE tool-output coercion, and the scope guardrail prompt.
+Unit tests cover the scraper's HTML parsers (parts listing, symptom page, part page),
+RRF ordering for hybrid search, SSE tool-output coercion, and the scope guardrail prompt.

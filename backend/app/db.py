@@ -54,11 +54,6 @@ async def _apply_migrations_conn(conn: asyncpg.Connection) -> None:
         await conn.execute(sql)
 
 
-async def apply_migrations(pool: asyncpg.Pool) -> None:
-    async with pool.acquire() as conn:
-        await _apply_migrations_conn(conn)
-
-
 def get_pool() -> asyncpg.Pool:
     if _pool is None:
         raise RuntimeError("DB pool not initialised; call init_pool() first")

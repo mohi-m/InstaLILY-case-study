@@ -1,7 +1,6 @@
 import type { ToolActivity as ToolActivityType } from "../lib/useSSE";
 
 const TOOL_LABELS: Record<string, { running: string; done: string }> = {
-  search_part_by_sku: { running: "Looking up part…", done: "Looked up part" },
   search_by_symptom: { running: "Searching parts by symptom…", done: "Searched parts" },
   get_part_detail: { running: "Getting part details…", done: "Got part details" },
   get_model_info: { running: "Looking up model…", done: "Looked up model" },
