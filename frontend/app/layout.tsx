@@ -4,6 +4,9 @@ import "./globals.css";
 export const metadata = {
   title: "PartSelect Assistant",
   description: "Find genuine OEM Refrigerator and Dishwasher parts",
+  icons: {
+    icon: "/icon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
