@@ -1,0 +1,49 @@
+# Render Blueprint for PartSelect Agent.
+# Deploy via Render Dashboard -> "New +" -> "Blueprint" -> point at this repo.
+# Postgres is a separate managed Render Postgres instance in the same region.
+
+services:
+  - type: web
+    name: partselect-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: LLM_MODEL
+        value: gpt-5.4-mini
+      - key: EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: LOG_LEVEL
+        value: INFO
+      # Secrets — set these in the Render dashboard after the Blueprint is created.
+      - key: OPENAI_API_KEY
+        sync: false
+      # Use the Render Postgres **Internal Database URL** (same-region private
+      # network — no TLS needed, no egress). Copy from the Postgres service's
+      # "Connect" tab in the Render dashboard.
+      - key: DATABASE_URL
+        sync: false
+      # Public URL of the deployed frontend, used for CORS allow-list.
+      # e.g. https://partselect-frontend.onrender.com
+      - key: FRONTEND_ORIGIN
+        sync: false
+
+  - type: web
+    name: partselect-frontend
+    runtime: node
+    rootDir: frontend
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 22.11.0
+      # Public URL of the deployed backend, baked into the build.
+      # e.g. https://partselect-backend.onrender.com
+      - key: NEXT_PUBLIC_API_BASE
+        sync: false
