@@ -22,9 +22,29 @@ yarn-error.log*
 # Playwright
 scraper/.pw-profile/
 playwright-report/
+test-results/
 
 # OS
 .DS_Store
+Thumbs.db
+desktop.ini
 
 # Claude Code
 .claude/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Python dist / build
+dist/
+build/
+
+# Coverage
+.coverage
+htmlcov/

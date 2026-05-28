@@ -34,6 +34,7 @@ REFRIGERATORS = [
     "KRMF536RPS00",
     "KRFF507HPS03",
     "KBFN536SPS00",
+    "ED5FVGXWS01"
 ]
 
 # Ordered (model_number, appliance_type) pairs for the crawl.

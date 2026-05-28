@@ -1,80 +1,117 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChat } from "../lib/useSSE";
+import { AssistantText, UserMessage } from "../components/Message";
+import { ToolActivity } from "../components/ToolActivity";
+import { ComponentCard } from "../components/ComponentCard";
 
-// Scaffold UI: proves SSE streaming end-to-end. Component events are shown as JSON
-// for now; the rich PartSelect-themed cards / diagrams / step visualizer land in the
-// follow-up PR (the SSE `component` contract is already in place).
+const SUGGESTIONS = [
+  "How do I install part PS11752778?",
+  "My dishwasher isn't draining — what part do I need?",
+  "Is PS11752778 compatible with WDT780SAEM1?",
+  "What parts are available for model WDT780SAEM1?",
+];
+
 export default function Page() {
-  const { messages, components, streaming, send } = useChat();
+  const { messages, streaming, send } = useChat();
   const [input, setInput] = useState("");
+  const bodyRef = useRef<HTMLDivElement>(null);
 
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || streaming) return;
-    send(input.trim());
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages]);
+
+  const submit = (text: string) => {
+    const t = text.trim();
+    if (!t || streaming) return;
+    send(t);
     setInput("");
   };
 
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submit(input);
+  };
+
   return (
-    <main style={{ maxWidth: 760, margin: "0 auto", padding: 24 }}>
-      <header style={{ background: "var(--ps-blue)", color: "#fff", padding: "16px 20px", borderRadius: 8 }}>
-        <h1 style={{ margin: 0, fontSize: 20 }}>PartSelect Assistant</h1>
-        <p style={{ margin: "4px 0 0", opacity: 0.85, fontSize: 14 }}>
-          Refrigerator &amp; Dishwasher parts, compatibility, and repairs
-        </p>
-      </header>
+    <main className="ps-page">
+      <div className="ps-chat">
+        <div className="ps-chat__head">
+          <h1>PartSelect Assistant</h1>
+          <p>Refrigerator &amp; Dishwasher parts, compatibility, and repair help</p>
+        </div>
 
-      <section style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            style={{
-              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-              background: m.role === "user" ? "var(--ps-blue)" : "#fff",
-              color: m.role === "user" ? "#fff" : "#1a1a1a",
-              border: "1px solid #dce4ef",
-              borderRadius: 12,
-              padding: "10px 14px",
-              maxWidth: "80%",
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {m.content || (streaming ? "…" : "")}
-          </div>
-        ))}
-      </section>
+        <div className="ps-chat__body" ref={bodyRef}>
+          {messages.length === 0 && (
+            <div className="ps-empty">
+              <h2>How can I help with your repair?</h2>
+              <p>
+                Ask about a specific part number, describe a symptom, or check whether a part fits
+                your model.
+              </p>
+              <div className="ps-suggest">
+                {SUGGESTIONS.map((s) => (
+                  <button key={s} type="button" onClick={() => submit(s)}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-      {components.length > 0 && (
-        <section style={{ marginTop: 16 }}>
-          <h2 style={{ fontSize: 13, color: "#5a6b82" }}>Component events (scaffold)</h2>
-          {components.map((c, i) => (
-            <pre
-              key={i}
-              style={{ background: "#fff", border: "1px solid #dce4ef", borderRadius: 8, padding: 12, fontSize: 12, overflowX: "auto" }}
-            >
-              {JSON.stringify(c, null, 2)}
-            </pre>
-          ))}
-        </section>
-      )}
+          {messages.map((m, i) => {
+            if (m.role === "user") {
+              return <UserMessage key={i} content={m.content} />;
+            }
+            const isLast = i === messages.length - 1;
+            const waiting =
+              streaming &&
+              isLast &&
+              m.content === "" &&
+              m.tools.length === 0 &&
+              m.components.length === 0;
+            return (
+              <div className="ps-turn" key={i}>
+                <ToolActivity tools={m.tools} />
+                {m.components.length > 0 && (
+                  <div className="ps-cards">
+                    {m.components.map((c, j) => (
+                      <ComponentCard key={j} item={c} />
+                    ))}
+                  </div>
+                )}
+                {waiting && (
+                  <div className="ps-activity">
+                    <div className="ps-typing" aria-label="Assistant is thinking">
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+                  </div>
+                )}
+                <AssistantText content={m.content} />
+                {m.error && (
+                  <div className="ps-bubble ps-bubble--assistant" style={{ color: "var(--ps-red)" }}>
+                    Something went wrong: {m.error}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
-      <form onSubmit={onSubmit} style={{ marginTop: 16, display: "flex", gap: 8 }}>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="e.g. How do I install part PS11752778?"
-          style={{ flex: 1, padding: "10px 12px", borderRadius: 8, border: "1px solid #c5d2e3" }}
-        />
-        <button
-          type="submit"
-          disabled={streaming}
-          style={{ background: "var(--ps-blue)", color: "#fff", border: 0, borderRadius: 8, padding: "10px 18px", cursor: "pointer" }}
-        >
-          Send
-        </button>
-      </form>
+        <form className="ps-composer" onSubmit={onSubmit}>
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask about a part, symptom, or model…"
+          />
+          <button type="submit" disabled={streaming || !input.trim()}>
+            {streaming ? "…" : "Send"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }

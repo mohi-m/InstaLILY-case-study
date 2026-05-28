@@ -13,6 +13,17 @@ MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
 async def _init_connection(conn: asyncpg.Connection) -> None:
     # pgvector codec must be registered per-connection so vector params bind.
     await register_vector(conn)
+    # Decode numeric/decimal as float so tool results stay JSON-serializable.
+    # Without this, asyncpg returns Decimal, which LangChain's ToolNode can't
+    # json.dumps — it falls back to a Python repr string and the rich UI cards
+    # (which carry prices) degrade to an unrenderable {"text": ...} blob.
+    await conn.set_type_codec(
+        "numeric",
+        encoder=str,
+        decoder=float,
+        schema="pg_catalog",
+        format="text",
+    )
 
 
 async def init_pool() -> asyncpg.Pool:
