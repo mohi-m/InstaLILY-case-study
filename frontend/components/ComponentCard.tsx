@@ -13,6 +13,8 @@ type Part = {
   description?: string | null;
   image_url?: string | null;
   url?: string | null;
+  install_difficulty?: string | null;
+  install_time?: string | null;
   symptoms?: string[];
   effectiveness?: number | string | null;
 };
@@ -135,24 +137,42 @@ function ProductCard({ data }: { data: Record<string, unknown> }) {
 function InstallSteps({ data }: { data: Record<string, unknown> }) {
   if (data.found === false) return <NotFound what="that part" />;
   const part = (data.part ?? {}) as Part;
-  const steps = (data.install_steps as string[]) ?? [];
+  const stories = (data.repair_stories as string[]) ?? [];
   const symptoms = (data.symptoms as { name: string; effectiveness?: number | string }[]) ?? [];
   const qa = (data.qa as { question: string; answer: string }[]) ?? [];
+  const hasRating = !!(part.install_difficulty || part.install_time);
   return (
     <CardShell title={`Installation — ${part.name ?? part.ps_number ?? "part"}`}>
       <PartCard part={part} />
       <div className="ps-card__pad" style={{ paddingTop: 0 }}>
-        {steps.length > 0 ? (
+        {hasRating && (
           <>
-            <div className="ps-section-h">Installation steps</div>
-            <ol className="ps-steps">
-              {steps.map((s, i) => (
-                <li key={i}>{s}</li>
-              ))}
-            </ol>
+            <div className="ps-section-h">Repair rating</div>
+            <div className="ps-rating">
+              {part.install_difficulty && (
+                <div className="ps-rating__item">
+                  <span className="ps-rating__label">Difficulty</span>
+                  <span className="ps-rating__value">{part.install_difficulty}</span>
+                </div>
+              )}
+              {part.install_time && (
+                <div className="ps-rating__item">
+                  <span className="ps-rating__label">Estimated time</span>
+                  <span className="ps-rating__value">{part.install_time}</span>
+                </div>
+              )}
+            </div>
           </>
-        ) : (
-          <p style={{ color: "var(--ps-muted)" }}>No installation steps recorded for this part.</p>
+        )}
+        {stories.length > 0 && (
+          <>
+            <div className="ps-section-h">Customer repair stories</div>
+            {stories.map((s, i) => (
+              <blockquote className="ps-story" key={i}>
+                {s}
+              </blockquote>
+            ))}
+          </>
         )}
         {symptoms.length > 0 && (
           <>

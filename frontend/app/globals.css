@@ -466,6 +466,39 @@ a:hover {
   letter-spacing: 0.03em;
   margin: 12px 0 6px;
 }
+.ps-rating {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.ps-rating__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--ps-surface-alt);
+  border: 1px solid var(--ps-border);
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+.ps-rating__label {
+  font-size: 11.5px;
+  color: var(--ps-muted);
+}
+.ps-rating__value {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ps-teal-dark);
+}
+.ps-story {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--ps-gold);
+  background: var(--ps-surface-alt);
+  border-radius: 0 8px 8px 0;
+  font-size: 13.5px;
+  color: var(--ps-text);
+  font-style: italic;
+}
 
 /* banners */
 .ps-banner {

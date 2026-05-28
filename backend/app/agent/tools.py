@@ -6,6 +6,7 @@ Added:   get_model_info, list_parts_for_model,
          search_model_qa, find_symptoms_for_model.
 """
 
+import re
 from typing import Any
 
 from langchain_core.tools import tool
@@ -41,11 +42,22 @@ async def _fetch_model(model_number: str) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
-def _split_steps(text: str | None) -> list[str]:
+_READMORE_RE = re.compile(r"\s*\bRead (?:more|less)\b\s*", re.IGNORECASE)
+
+
+def _repair_stories(text: str | None) -> list[str]:
+    """install_instructions is scraped customer repair stories joined by blank
+    lines — free-form narratives, not numbered steps. Split them back apart and
+    strip the "Read more"/"Read less" toggle artifacts left over from scraping."""
     if not text:
         return []
-    lines = [line.strip().lstrip("-•\t") for line in text.splitlines()]
-    return [l for l in lines if l and len(l) > 8]
+    stories: list[str] = []
+    for block in re.split(r"\n\s*\n", text):
+        cleaned = _READMORE_RE.sub(" ", block)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        if len(cleaned) > 8:
+            stories.append(cleaned)
+    return stories
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +112,7 @@ async def get_part_detail(ps_number: str) -> dict[str, Any]:
     return {
         "found": True,
         "part": part,
-        "install_steps": _split_steps(part.get("install_instructions")),
+        "repair_stories": _repair_stories(part.get("install_instructions")),
         "symptoms": [{"name": r["name"], "effectiveness": r["effectiveness"]} for r in symptoms],
         "qa": [dict(r) for r in qa],
     }
